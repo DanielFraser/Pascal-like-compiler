@@ -135,8 +135,10 @@ lhs	: ID			{ /* BOGUS  - needs to be fixed */
                                   $$.targetRegister = newReg2;
                                   $$.type = TYPE_INT;
 
-				  insert($1.str, TYPE_INT, offset);
-				   
+                  SymTabEntry* exists = lookup($1.str);
+                  if (!exists)
+				    insert($1.str, TYPE_INT, offset);
+				  offset =  lookup($1.str) -> offset;
 				  emit(NOLABEL, LOADI, offset, newReg1, EMPTY);
 				  emit(NOLABEL, ADD, 0, newReg1, newReg2);
 				  
@@ -162,24 +164,74 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
                                        newReg);
                                 }
 
-        | exp '-' exp		{  }
+        | exp '-' exp   { int newReg = NextRegister();
 
-        | exp '*' exp		{  }
+                          if (! (($1.type == TYPE_INT) && ($3.type == TYPE_INT))) {
+                            printf("*** ERROR ***: Operator types must be integer.\n");
+                          }
+                          $$.type = $1.type;
 
-        | exp AND exp		{  } 
+                          $$.targetRegister = newReg;
+                          emit(NOLABEL,
+                               SUB,
+                               $1.targetRegister,
+                               $3.targetRegister,
+                               newReg);
+                        }
 
+        | exp '*' exp	{ int newReg = NextRegister();
 
-        | exp OR exp       	{  }
+                          if (! (($1.type == TYPE_INT) && ($3.type == TYPE_INT))) {
+                            printf("*** ERROR ***: Operator types must be integer.\n");
+                          }
+                          $$.type = $1.type;
+
+                          $$.targetRegister = newReg;
+                          emit(NOLABEL,
+                               MULT,
+                               $1.targetRegister,
+                               $3.targetRegister,
+                               newReg);
+                        }
+
+        | exp AND exp	{ int newReg = NextRegister();
+
+                          if (! (($1.type == TYPE_BOOL) && ($3.type == TYPE_BOOL))) {
+                            printf("*** ERROR ***: Operator types must be boolean.\n");
+                          }
+                          $$.type = $1.type;
+
+                          $$.targetRegister = newReg;
+                          emit(NOLABEL,
+                               AND_INSTR,
+                               $1.targetRegister,
+                               $3.targetRegister,
+                               newReg);
+                        }
+
+        | exp OR exp    { int newReg = NextRegister();
+
+                          if (! (($1.type == TYPE_BOOL) && ($3.type == TYPE_BOOL))) {
+                            printf("*** ERROR ***: Operator types must be boolean.\n");
+                          }
+                          $$.type = $1.type;
+
+                          $$.targetRegister = newReg;
+                          emit(NOLABEL,
+                               OR_INSTR,
+                               $1.targetRegister,
+                               $3.targetRegister,
+                               newReg);
+                        }
 
 
         | ID			{ /* BOGUS  - needs to be fixed */
-	                          int newReg = NextRegister();
-                                  int offset = NextOffset(4);
+                              int newReg = NextRegister();
+                              SymTabEntry* var = lookup($1.str);
 
 	                          $$.targetRegister = newReg;
-				  $$.type = TYPE_INT;
-				  emit(NOLABEL, LOADAI, 0, offset, newReg);
-                                  
+                              $$.type = TYPE_INT;
+                              emit(NOLABEL, LOADAI, 0, var ->offset, newReg);
 	                        }
 
         | ID '[' exp ']'	{   }
