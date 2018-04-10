@@ -13,6 +13,7 @@ char *CommentBuffer;
 
 %union {tokentype token;
         regInfo targetReg;
+        LabelList labels;
        }
 
 %token PROG PERIOD VAR 
@@ -21,12 +22,13 @@ char *CommentBuffer;
 %token BEG END ASG  
 %token EQ NEQ LT LEQ AND OR TRUE FALSE
 %token ELSE
-%token WHILE 
+%token WHILE
 %token <token> ID ICONST 
 
 %type <targetReg> exp 
 %type <targetReg> lhs 
 %type <targetReg> type stype vardcl idlist
+%type <labels> wstmt condexp ifhead
 
 %start program
 
@@ -55,32 +57,41 @@ vardcls	: vardcls vardcl ';' { }
 	| error ';' { yyerror("***Error: illegal variable declaration\n");}  
 	;
 
-vardcl	: idlist ':' type {$1.type = $3.type;}
+vardcl	: idlist ':' type {}
 	;
 
-idlist	: idlist ',' ID {   int offset = NextOffset(1);
-
-                            SymTabEntry* exists = lookup($3.str);
-                            if (!exists)
-                                insert($3.str, $$.type, offset);
-                        }
-        | ID	{
-                    int offset = NextOffset(1);
-
-                    SymTabEntry* exists = lookup($1.str);
-                    if (!exists)
-                        insert($1.str, $$.type, offset);
-                }
+idlist	: idlist ',' ID {addToList($3.str);}
+        | ID	{addToList($1.str);}
 	;
 
 
 type	: ARRAY '[' ICONST ']' OF stype {  }
 
-        | stype {$$.type = $1.type;}
+        | stype {}
 	;
 
-stype	: INT {$$.type = TYPE_INT;}
-        | BOOL {$$.type = TYPE_BOOL;}
+stype	: INT   {
+                    Node* cursor = (Node*) getVarList();
+                    int offset = 0;
+                    while(cursor)
+                    {
+                        offset = NextOffset(1);
+                        insert(cursor -> string, TYPE_INT, offset);
+                        cursor = (Node*) cursor -> next;
+                    }
+                    clearList(); //done with list
+                }
+        | BOOL {
+                    Node* cursor = (Node*) getVarList();
+                    int offset = 0;
+                    while(cursor)
+                    {
+                        offset = NextOffset(1);
+                        insert(cursor -> string, TYPE_BOOL, offset);
+                        cursor = (Node*) cursor -> next;
+                    }
+                    clearList(); //done with list
+                }
 	;
 
 stmtlist : stmtlist ';' stmt { }
@@ -99,12 +110,16 @@ cmpdstmt: BEG stmtlist END { }
 	;
 
 ifstmt :  ifhead 
-          THEN stmt 
+          THEN stmt {$1.initial = NextLabel();
+          emit(NOLABEL,BR,$1.initial,0,0);
+          emit($1.endLbl,NOP,0,0,0);}
   	  ELSE 
-          stmt 
+          stmt {emit($1.initial,NOP,0,0,0);}
 	;
 
-ifhead : IF condexp {  }
+ifhead : IF condexp {emit($2.cond,NOP,0,0,0);
+                    $$.cond = $2.cond;
+                    $$.endLbl = $2.endLbl;}
         ;
 
 writestmt: PRINT '(' exp ')' { int printOffset = -4; /* default location for printing */
@@ -119,16 +134,15 @@ writestmt: PRINT '(' exp ')' { int printOffset = -4; /* default location for pri
                                }
 	;
 
-wstmt	: WHILE  {  } 
-          condexp {  } 
-          DO stmt  {  } 
+wstmt	: WHILE  {emit(NextLabel(),NOP,0,0,0);}
+          condexp {emit($3.cond,NOP,0,0,0);}
+          DO stmt  {emit(NOLABEL,BR,$3.initial,0,0); emit($3.endLbl,NOP,0,0,0);}
 	;
 
 
 astmt : lhs ASG exp             { 
  				  if (! ((($1.type == TYPE_INT) && ($3.type == TYPE_INT)) || 
 				         (($1.type == TYPE_BOOL) && ($3.type == TYPE_BOOL)))) {
-				         printf("\nb: %d and %d\n", $1.type == TYPE_BOOL, $3.type == TYPE_BOOL);
 				    printf("*** ERROR ***: Assignment types do not match.\n");
 				  }
 
@@ -141,21 +155,17 @@ astmt : lhs ASG exp             {
 	;
 
 lhs	: ID			{ /* BOGUS  - needs to be fixed */
-                                  int newReg1 = NextRegister();
-                                  int newReg2 = NextRegister();
-                                  int offset = NextOffset(1);
-				  
-                                  $$.targetRegister = newReg2;
-                                  $$.type = TYPE_INT;
+                  int newReg1 = NextRegister();
+                  int newReg2 = NextRegister();
 
                   SymTabEntry* exists = lookup($1.str);
-                  if (!exists)
-				    insert($1.str, TYPE_INT, offset);
-				  offset =  lookup($1.str) -> offset;
+                  $$.type = exists -> type;
+                  $$.targetRegister = newReg2;
+				  int offset =  exists -> offset;
 				  emit(NOLABEL, LOADI, offset, newReg1, EMPTY);
 				  emit(NOLABEL, ADD, 0, newReg1, newReg2);
 				  
-                         	  }
+                  }
 
 
                                 |  ID '[' exp ']' {   }
@@ -243,7 +253,7 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
                               SymTabEntry* var = lookup($1.str);
 
 	                          $$.targetRegister = newReg;
-                              $$.type = TYPE_INT;
+                              $$.type = var -> type;
                               emit(NOLABEL, LOADAI, 0, var ->offset, newReg);
 	                        }
 
@@ -270,17 +280,53 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
 	;
 
 
-condexp	: exp NEQ exp		{  } 
+condexp	: exp NEQ exp	{int reg = NextRegister();
+                        emit(NOLABEL, CMPNE, $1.targetRegister, $3.targetRegister, reg);
+                        $$.cond = NextLabel();
+                        $$.initial = $$.cond - 1;
+                        $$.endLbl = NextLabel();
+                        emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
+                       }
 
-        | exp EQ exp		{  } 
+        | exp EQ exp	{int reg = NextRegister();
+                        emit(NOLABEL, CMPEQ, $1.targetRegister, $3.targetRegister, reg);
+                        $$.cond = NextLabel();
+                        $$.initial = $$.cond - 1;
+                        $$.endLbl = NextLabel();
+                        emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
+                        }
 
-        | exp LT exp		{  }
+        | exp LT exp	{int reg = NextRegister();
+                        emit(NOLABEL, CMPLT, $1.targetRegister, $3.targetRegister,  reg);
+                        $$.cond = NextLabel();
+                        $$.initial = $$.cond - 1;
+                        $$.endLbl = NextLabel();
+                        emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
+                        }
 
-        | exp LEQ exp		{  }
+        | exp LEQ exp	{int reg = NextRegister();
+                        emit(NOLABEL, CMPLE, $1.targetRegister, $3.targetRegister, reg);
+                        $$.cond = NextLabel();
+                        $$.initial = $$.cond - 1;
+                        $$.endLbl = NextLabel();
+                        emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
+                        }
 
-	| exp GT exp		{  }
+	    | exp GT exp	{int reg = NextRegister();
+                        emit(NOLABEL, CMPGT, $1.targetRegister, $3.targetRegister,  reg);
+                        $$.cond = NextLabel();
+                        $$.initial = $$.cond - 1;
+                        $$.endLbl = NextLabel();
+                        emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
+                        }
 
-	| exp GEQ exp		{  }
+	    | exp GEQ exp	{int reg = NextRegister();
+                        emit(NOLABEL, CMPGE, $1.targetRegister, $3.targetRegister, reg);
+                        $$.cond = NextLabel();
+                        $$.initial = $$.cond - 1;
+                        $$.endLbl = NextLabel();
+                        emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
+                        }
 
 	| error { yyerror("***Error: illegal conditional expression\n");}  
         ;

@@ -16,14 +16,26 @@ typedef struct {
         int targetRegister;
         } regInfo;
 
-struct Node
+typedef struct
 {
-    char* str;
-    struct Node *next;
-};
+    int initial; //loop start
+    int cond; //loop true
+    int endLbl; //loop end
+}LabelList;
+
+
+/*
+ *the Nodes that will make up the linked list
+ */
+typedef struct LinkedList
+{
+    char* string; //designed to hold the string
+    struct LinkedList* next; //connects the node to another
+}Node;
 
 void clearList();
 void addToList();
+Node* getVarList();
 
 
 #endif
