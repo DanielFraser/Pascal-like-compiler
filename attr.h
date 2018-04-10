@@ -18,7 +18,7 @@ typedef struct {
 
 struct Node
 {
-    char* data;
+    char* str;
     struct Node *next;
 };
 
