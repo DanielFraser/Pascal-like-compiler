@@ -26,6 +26,7 @@ char *CommentBuffer;
 
 %type <targetReg> exp 
 %type <targetReg> lhs 
+%type <targetReg> type stype vardcl
 
 %start program
 
@@ -54,11 +55,11 @@ vardcls	: vardcls vardcl ';' { }
 	| error ';' { yyerror("***Error: illegal variable declaration\n");}  
 	;
 
-vardcl	: idlist ':' type {  }
+vardcl	: idlist ':' type {}
 	;
 
 idlist	: idlist ',' ID {  }
-        | ID		{  } 
+        | ID		{$1.}
 	;
 
 
@@ -67,8 +68,8 @@ type	: ARRAY '[' ICONST ']' OF stype {  }
         | stype {  }
 	;
 
-stype	: INT {  }
-        | BOOL {  }
+stype	: INT {$$.type = TYPE_INT}
+        | BOOL {$$type = TYPE_BOOL}
 	;
 
 stmtlist : stmtlist ';' stmt { }
@@ -116,6 +117,7 @@ wstmt	: WHILE  {  }
 astmt : lhs ASG exp             { 
  				  if (! ((($1.type == TYPE_INT) && ($3.type == TYPE_INT)) || 
 				         (($1.type == TYPE_BOOL) && ($3.type == TYPE_BOOL)))) {
+				         printf("\nb: %d and %d\n", $1.type == TYPE_BOOL, $3.type == TYPE_BOOL);
 				    printf("*** ERROR ***: Assignment types do not match.\n");
 				  }
 
@@ -130,7 +132,7 @@ astmt : lhs ASG exp             {
 lhs	: ID			{ /* BOGUS  - needs to be fixed */
                                   int newReg1 = NextRegister();
                                   int newReg2 = NextRegister();
-                                  int offset = NextOffset(4);
+                                  int offset = NextOffset(1);
 				  
                                   $$.targetRegister = newReg2;
                                   $$.type = TYPE_INT;
@@ -248,7 +250,7 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
 				   $$.type = TYPE_BOOL;
 				   emit(NOLABEL, LOADI, 1, newReg, EMPTY); }
 
-        | FALSE                   { int newReg = NextRegister(); /* TRUE is encoded as value '0' */
+        | FALSE                   { int newReg = NextRegister(); /* FALSE is encoded as value '0' */
 	                           $$.targetRegister = newReg;
 				   $$.type = TYPE_BOOL;
 				   emit(NOLABEL, LOADI, 0, newReg, EMPTY); }

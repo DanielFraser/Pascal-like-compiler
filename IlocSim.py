@@ -12,6 +12,7 @@ def accessMem(num, value=None):
 
     if not value:
         if num not in mem:
+            print("b:", num)
             return 0
         return mem[num]
     else:
@@ -37,7 +38,7 @@ def parse(line):
 
     elif action == "loadI":
         regs = re.findall('(r\d+)', line)[0]
-        count = int(re.search('(\d+)', line).group(1))
+        count = int(re.search('(-?\d+)', line).group(1))
         registers[regs] = count
 
     elif action == "load":
@@ -55,12 +56,12 @@ def parse(line):
 
     elif action == "addI":
         regs = re.findall('(r\d+)', line)
-        count = int(re.search(', *(\d+)', line).group(1))
+        count = int(re.search(', *(-?\d+)', line).group(1))
         registers[regs[1]] = registers[regs[0]] + count
 
     elif action == "subI":
         regs = re.findall('(r\d+)', line)
-        count = int(re.search(', *(\d+)', line).group(1))
+        count = int(re.search(', *(-?\d+)', line).group(1))
         registers[regs[1]] = registers[regs[0]] - count
 
     elif action == "add":
@@ -90,7 +91,12 @@ def parse(line):
     elif action == "rshift":
         regs = re.findall('(r\d+)', line)
         registers[regs[2]] = registers[regs[0]] << registers[regs[1]]
-
+    elif action == "or":
+        regs = re.findall('(r\d+)', line)
+        registers[regs[2]] = registers[regs[0]] or registers[regs[1]]
+    elif action == "and":
+        regs = re.findall('(r\d+)', line)
+        registers[regs[2]] = registers[regs[0]] and registers[regs[1]]
     else:
         print(action)
 
@@ -102,6 +108,7 @@ def start(iloc):
             parse(line)
             lines += 1
     print("cycles = {} and lines = {}".format(cycles, lines))
+    print(mem)
 
 if __name__ == '__main__':
     lines = 0
