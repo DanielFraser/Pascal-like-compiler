@@ -16,6 +16,16 @@ typedef struct {
         int targetRegister;
         } regInfo;
 
+struct Node
+{
+    char* data;
+    struct Node *next;
+};
+
+void clearList();
+void addToList();
+
+
 #endif
 
 

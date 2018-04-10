@@ -26,7 +26,7 @@ char *CommentBuffer;
 
 %type <targetReg> exp 
 %type <targetReg> lhs 
-%type <targetReg> type stype vardcl
+%type <targetReg> type stype vardcl idlist
 
 %start program
 
@@ -55,21 +55,32 @@ vardcls	: vardcls vardcl ';' { }
 	| error ';' { yyerror("***Error: illegal variable declaration\n");}  
 	;
 
-vardcl	: idlist ':' type {}
+vardcl	: idlist ':' type {$1.type = $3.type;}
 	;
 
-idlist	: idlist ',' ID {  }
-        | ID		{$1.}
+idlist	: idlist ',' ID {   int offset = NextOffset(1);
+
+                            SymTabEntry* exists = lookup($3.str);
+                            if (!exists)
+                                insert($3.str, $$.type, offset);
+                        }
+        | ID	{
+                    int offset = NextOffset(1);
+
+                    SymTabEntry* exists = lookup($1.str);
+                    if (!exists)
+                        insert($1.str, $$.type, offset);
+                }
 	;
 
 
 type	: ARRAY '[' ICONST ']' OF stype {  }
 
-        | stype {  }
+        | stype {$$.type = $1.type;}
 	;
 
-stype	: INT {$$.type = TYPE_INT}
-        | BOOL {$$type = TYPE_BOOL}
+stype	: INT {$$.type = TYPE_INT;}
+        | BOOL {$$.type = TYPE_BOOL;}
 	;
 
 stmtlist : stmtlist ';' stmt { }
