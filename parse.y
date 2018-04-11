@@ -150,10 +150,13 @@ astmt : lhs ASG exp             {
 	;
 
 lhs	: ID			{ /* BOGUS  - needs to be fixed */
+
                   int newReg1 = NextRegister();
                   int newReg2 = NextRegister();
 
                   SymTabEntry* exists = lookup($1.str);
+                  if(!exists)
+                    printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
                   $$.type = exists -> type;
                   $$.targetRegister = newReg2;
 				  int offset =  exists -> offset;
@@ -165,9 +168,11 @@ lhs	: ID			{ /* BOGUS  - needs to be fixed */
 
                 |  ID '[' exp ']'   {
                                         if($3.type != TYPE_INT)
-                                           printf("\n*** ERROR ***: Array variable %s index type must be integer.\n");
+                                            printf("\n*** ERROR ***: Array variable %s index type must be integer.\n", $1.str);
 
                                        SymTabEntry* var = lookup($1.str);
+                                       if(!exists)
+                                          printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
                                        int offset = var -> offset;
                                        int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister()};
                                        emit(NOLABEL, LOADI, 4, newRegs[0], EMPTY);
@@ -184,7 +189,7 @@ lhs	: ID			{ /* BOGUS  - needs to be fixed */
 exp	: exp '+' exp		{ int newReg = NextRegister();
 
                                   if (! (($1.type == TYPE_INT) && ($3.type == TYPE_INT))) {
-    				    printf("*** ERROR ***: Operator types must be integer.\n");
+    				                printf("*** ERROR ***: Operator types must be integer.\n");
                                   }
                                   $$.type = $1.type;
 
@@ -229,7 +234,7 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
         | exp AND exp	{ int newReg = NextRegister();
 
                           if (! (($1.type == TYPE_BOOL) && ($3.type == TYPE_BOOL))) {
-                            printf("*** ERROR ***: Operator types must be boolean.\n");
+                            printf("\n*** ERROR ***: Operand type must be boolean.\n");
                           }
                           $$.type = $1.type;
 
@@ -243,9 +248,9 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
 
         | exp OR exp    { int newReg = NextRegister();
 
-                          if (! (($1.type == TYPE_BOOL) && ($3.type == TYPE_BOOL))) {
-                            printf("*** ERROR ***: Operator types must be boolean.\n");
-                          }
+                           if (! (($1.type == TYPE_BOOL) && ($3.type == TYPE_BOOL))) {
+                              printf("\n*** ERROR ***: Operand type must be boolean.\n");
+                            }
                           $$.type = $1.type;
 
                           $$.targetRegister = newReg;
@@ -260,7 +265,8 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
         | ID			{ /* BOGUS  - needs to be fixed */
                               int newReg = NextRegister();
                               SymTabEntry* var = lookup($1.str);
-
+                              if(!exists)
+                                printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
 	                          $$.targetRegister = newReg;
                               $$.type = var -> type;
                               emit(NOLABEL, LOADI, var -> offset, newReg, EMPTY);
@@ -268,9 +274,11 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
 
         | ID '[' exp ']'    {
                               if($3.type != TYPE_INT)
-                                printf("\n*** ERROR ***: Array variable %s index type must be integer.\n");
+                                printf("\n*** ERROR ***: Array variable %s index type must be integer.\n", $1.str);
 
                               SymTabEntry* var = lookup($1.str);
+                              if(!exists)
+                                printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
                               int offset = var -> offset;
                               int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister()};
                               emit(NOLABEL, LOADI, 4, newRegs[0], EMPTY);
@@ -303,7 +311,10 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
 	;
 
 
-condexp	: exp NEQ exp	{int reg = NextRegister();
+condexp	: exp NEQ exp	{
+                        if($1.type != $3.type)
+                            printf("\n*** ERROR ***: == or != operator with different types.\n");
+                        int reg = NextRegister();
                         emit(NOLABEL, CMPNE, $1.targetRegister, $3.targetRegister, reg);
                         $$.cond = NextLabel();
                         $$.initial = $$.cond - 1;
@@ -311,7 +322,10 @@ condexp	: exp NEQ exp	{int reg = NextRegister();
                         emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
                        }
 
-        | exp EQ exp	{int reg = NextRegister();
+        | exp EQ exp	{
+                        if($1.type != $3.type)
+                            printf("\n*** ERROR ***: == or != operator with different types.\n");
+                        int reg = NextRegister();
                         emit(NOLABEL, CMPEQ, $1.targetRegister, $3.targetRegister, reg);
                         $$.cond = NextLabel();
                         $$.initial = $$.cond - 1;
@@ -319,7 +333,10 @@ condexp	: exp NEQ exp	{int reg = NextRegister();
                         emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
                         }
 
-        | exp LT exp	{int reg = NextRegister();
+        | exp LT exp	{
+                        if($1.type != TYPE_INT || $3.type != TYPE_INT)
+                            printf("\n*** ERROR ***: Relational operator with illegal type.\n");
+                        int reg = NextRegister();
                         emit(NOLABEL, CMPLT, $1.targetRegister, $3.targetRegister,  reg);
                         $$.cond = NextLabel();
                         $$.initial = $$.cond - 1;
@@ -327,7 +344,9 @@ condexp	: exp NEQ exp	{int reg = NextRegister();
                         emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
                         }
 
-        | exp LEQ exp	{int reg = NextRegister();
+        | exp LEQ exp	{if($1.type != TYPE_INT || $3.type != TYPE_INT)
+                            printf("\n*** ERROR ***: Relational operator with illegal type.\n");
+                        int reg = NextRegister();
                         emit(NOLABEL, CMPLE, $1.targetRegister, $3.targetRegister, reg);
                         $$.cond = NextLabel();
                         $$.initial = $$.cond - 1;
@@ -335,7 +354,9 @@ condexp	: exp NEQ exp	{int reg = NextRegister();
                         emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
                         }
 
-	    | exp GT exp	{int reg = NextRegister();
+	    | exp GT exp	{if($1.type != TYPE_INT || $3.type != TYPE_INT)
+                            printf("\n*** ERROR ***: Relational operator with illegal type.\n");
+                        int reg = NextRegister();
                         emit(NOLABEL, CMPGT, $1.targetRegister, $3.targetRegister,  reg);
                         $$.cond = NextLabel();
                         $$.initial = $$.cond - 1;
@@ -343,7 +364,9 @@ condexp	: exp NEQ exp	{int reg = NextRegister();
                         emit(NOLABEL, CBR, reg, $$.cond, $$.endLbl);
                         }
 
-	    | exp GEQ exp	{int reg = NextRegister();
+	    | exp GEQ exp	{if($1.type != TYPE_INT || $3.type != TYPE_INT)
+                            printf("\n*** ERROR ***: Relational operator with illegal type.\n");
+                        int reg = NextRegister();
                         emit(NOLABEL, CMPGE, $1.targetRegister, $3.targetRegister, reg);
                         $$.cond = NextLabel();
                         $$.initial = $$.cond - 1;
