@@ -65,33 +65,28 @@ idlist	: idlist ',' ID {addToList($3.str);}
 	;
 
 
-type	: ARRAY '[' ICONST ']' OF stype {  }
+type	: ARRAY '[' ICONST ']' OF stype {
+                            int offset = NextOffset($3.num);
+                            Node* cursor = (Node*) getVarList();
+                            insert(cursor -> string, $6.type, offset);
+                            clearList();
+                            }
 
-        | stype {}
+        | stype {
+                 Node* cursor = (Node*) getVarList();
+                 int offset = 0;
+                 while(cursor)
+                 {
+                     offset = NextOffset(1);
+                     insert(cursor -> string, $1.type, offset);
+                     cursor = (Node*) cursor -> next;
+                 }
+                 clearList();}
 	;
 
-stype	: INT   {
-                    Node* cursor = (Node*) getVarList();
-                    int offset = 0;
-                    while(cursor)
-                    {
-                        offset = NextOffset(1);
-                        insert(cursor -> string, TYPE_INT, offset);
-                        cursor = (Node*) cursor -> next;
-                    }
-                    clearList(); //done with list
-                }
-        | BOOL {
-                    Node* cursor = (Node*) getVarList();
-                    int offset = 0;
-                    while(cursor)
-                    {
-                        offset = NextOffset(1);
-                        insert(cursor -> string, TYPE_BOOL, offset);
-                        cursor = (Node*) cursor -> next;
-                    }
-                    clearList(); //done with list
-                }
+stype	: INT  {$$.type = TYPE_INT;}
+
+        | BOOL {$$.type = TYPE_INT;}
 	;
 
 stmtlist : stmtlist ';' stmt { }
@@ -168,7 +163,21 @@ lhs	: ID			{ /* BOGUS  - needs to be fixed */
                   }
 
 
-                                |  ID '[' exp ']' {   }
+                |  ID '[' exp ']'   {
+                                        if($3.type != TYPE_INT)
+                                           printf("\n*** ERROR ***: Array variable %s index type must be integer.\n");
+
+                                       SymTabEntry* var = lookup($1.str);
+                                       int offset = var -> offset;
+                                       int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister()};
+                                       emit(NOLABEL, LOADI, 4, newRegs[0], EMPTY);
+                                       emit(NOLABEL, MULT, newRegs[0], $3.targetRegister, newRegs[1]);
+                                       emit(NOLABEL, LOADI, offset,  newRegs[2], EMPTY);
+                                       emit(NOLABEL, ADD, newRegs[1], newRegs[2], newRegs[3]);
+                                       emit(NOLABEL, ADD, 0, newRegs[3], newRegs[4]);
+                                       $$.type = var -> type;
+                                       $$.targetRegister = newRegs[4];
+                                    }
                                 ;
 
 
@@ -254,10 +263,24 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
 
 	                          $$.targetRegister = newReg;
                               $$.type = var -> type;
-                              emit(NOLABEL, LOADAI, 0, var ->offset, newReg);
+                              emit(NOLABEL, LOADI, var -> offset, newReg, EMPTY);
 	                        }
 
-        | ID '[' exp ']'	{   }
+        | ID '[' exp ']'    {
+                              if($3.type != TYPE_INT)
+                                printf("\n*** ERROR ***: Array variable %s index type must be integer.\n");
+
+                              SymTabEntry* var = lookup($1.str);
+                              int offset = var -> offset;
+                              int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister()};
+                              emit(NOLABEL, LOADI, 4, newRegs[0], EMPTY);
+                              emit(NOLABEL, MULT, newRegs[0], $3.targetRegister, newRegs[1]);
+                              emit(NOLABEL, LOADI, offset,  newRegs[2], EMPTY);
+                              emit(NOLABEL, ADD, newRegs[1], newRegs[2], newRegs[3]);
+                              emit(NOLABEL, LOADAO, 0, newRegs[3], newRegs[4]);
+                              $$.type = var -> type;
+                              $$.targetRegister = newRegs[4];
+                            }
  
 
 
