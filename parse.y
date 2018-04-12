@@ -68,7 +68,7 @@ idlist	: idlist ',' ID {addToList($3.str);}
 type	: ARRAY '[' ICONST ']' OF stype {
                             int offset = NextOffset($3.num);
                             Node* cursor = (Node*) getVarList();
-                            insert(cursor -> string, $6.type, offset);
+                            insert(cursor -> string, $6.type, offset, TYPE_ARRAY);
                             clearList();
                             }
 
@@ -78,7 +78,7 @@ type	: ARRAY '[' ICONST ']' OF stype {
                  while(cursor)
                  {
                      offset = NextOffset(1);
-                     insert(cursor -> string, $1.type, offset);
+                     insert(cursor -> string, $1.type, offset, TYPE_SCALAR);
                      cursor = (Node*) cursor -> next;
                  }
                  clearList();}
@@ -86,7 +86,7 @@ type	: ARRAY '[' ICONST ']' OF stype {
 
 stype	: INT  {$$.type = TYPE_INT;}
 
-        | BOOL {$$.type = TYPE_INT;}
+        | BOOL {$$.type = TYPE_BOOL;}
 	;
 
 stmtlist : stmtlist ';' stmt { }
@@ -130,15 +130,19 @@ writestmt: PRINT '(' exp ')' { int printOffset = -4; /* default location for pri
 	;
 
 wstmt	: WHILE  {emit(NextLabel(),NOP,0,0,0);}
-          condexp {emit($3.cond,NOP,0,0,0);}
-          DO stmt  {emit(NOLABEL,BR,$3.initial,0,0); emit($3.endLbl,NOP,0,0,0);}
+          condexp {//Activate global var?
+                    inductionVar = 1;
+                    emit($3.cond,NOP,0,0,0);}
+          DO stmt  {//Deactivate global var?
+                    inductionVar = 0;
+                    emit(NOLABEL,BR,$3.initial,0,0); emit($3.endLbl,NOP,0,0,0);}
 	;
 
 
 astmt : lhs ASG exp             { 
  				  if (! ((($1.type == TYPE_INT) && ($3.type == TYPE_INT)) || 
 				         (($1.type == TYPE_BOOL) && ($3.type == TYPE_BOOL)))) {
-				    printf("*** ERROR ***: Assignment types do not match.\n");
+				    printf("\n*** ERROR ***: Assignment types do not match.\n");
 				  }
 
 				  emit(NOLABEL,
@@ -156,7 +160,18 @@ lhs	: ID			{ /* BOGUS  - needs to be fixed */
 
                   SymTabEntry* exists = lookup($1.str);
                   if(!exists)
-                    printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
+                  {
+                    if(inductionVar)
+                        printf("\n*** ERROR ***: Induction variable %s not declared.\n", $1.str);
+                    else
+                        printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
+                  }
+
+                if(inductionVar && (exists -> type != TYPE_INT || exists -> var != TYPE_SCALAR))
+                    printf("\n*** ERROR ***: Induction variable %s not a scalar of type integer.\n", $1.str);
+                else if (exists -> var != TYPE_SCALAR)
+                    printf("\n*** ERROR ***: Variable %s is not a scalar variable.\n", $1.str);
+
                   $$.type = exists -> type;
                   $$.targetRegister = newReg2;
 				  int offset =  exists -> offset;
@@ -167,11 +182,14 @@ lhs	: ID			{ /* BOGUS  - needs to be fixed */
 
 
                 |  ID '[' exp ']'   {
+                                        SymTabEntry* var = lookup($1.str);
+                                         if(var -> var != TYPE_ARRAY)
+                                            printf("\n*** ERROR ***: Variable %s is not an array variable.\n", $1.str);
                                         if($3.type != TYPE_INT)
                                             printf("\n*** ERROR ***: Array variable %s index type must be integer.\n", $1.str);
 
-                                       SymTabEntry* var = lookup($1.str);
-                                       if(!exists)
+
+                                       if(!var)
                                           printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
                                        int offset = var -> offset;
                                        int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister()};
@@ -189,7 +207,7 @@ lhs	: ID			{ /* BOGUS  - needs to be fixed */
 exp	: exp '+' exp		{ int newReg = NextRegister();
 
                                   if (! (($1.type == TYPE_INT) && ($3.type == TYPE_INT))) {
-    				                printf("*** ERROR ***: Operator types must be integer.\n");
+    				                printf("\n*** ERROR ***: Operator types must be integer.\n");
                                   }
                                   $$.type = $1.type;
 
@@ -204,7 +222,7 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
         | exp '-' exp   { int newReg = NextRegister();
 
                           if (! (($1.type == TYPE_INT) && ($3.type == TYPE_INT))) {
-                            printf("*** ERROR ***: Operator types must be integer.\n");
+                            printf("\n*** ERROR ***: Operator types must be integer.\n");
                           }
                           $$.type = $1.type;
 
@@ -219,7 +237,7 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
         | exp '*' exp	{ int newReg = NextRegister();
 
                           if (! (($1.type == TYPE_INT) && ($3.type == TYPE_INT))) {
-                            printf("*** ERROR ***: Operator types must be integer.\n");
+                            printf("\n*** ERROR ***: Operator types must be integer.\n");
                           }
                           $$.type = $1.type;
 
@@ -265,7 +283,9 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
         | ID			{ /* BOGUS  - needs to be fixed */
                               int newReg = NextRegister();
                               SymTabEntry* var = lookup($1.str);
-                              if(!exists)
+                              if(var -> var != TYPE_SCALAR)
+                                printf("\n*** ERROR ***: Variable %s is not a scalar variable.\n", $1.str);
+                              if(!var)
                                 printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
 	                          $$.targetRegister = newReg;
                               $$.type = var -> type;
@@ -277,7 +297,9 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
                                 printf("\n*** ERROR ***: Array variable %s index type must be integer.\n", $1.str);
 
                               SymTabEntry* var = lookup($1.str);
-                              if(!exists)
+                              if(var -> var != TYPE_ARRAY)
+                                printf("\n*** ERROR ***: Variable %s is not an array variable.\n", $1.str);
+                              if(!var)
                                 printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
                               int offset = var -> offset;
                               int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister()};

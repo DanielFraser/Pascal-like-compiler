@@ -1,5 +1,5 @@
 program main;
-var a, b, c: integer; 
+var a, b, c: integer;
 begin
   a := 1;
   b := 10;

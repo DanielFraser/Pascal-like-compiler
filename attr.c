@@ -39,8 +39,7 @@ void addToList(char* str)
     temp -> string = strncpy(temp->string,str,strlen(str)+1); //copy string
     temp-> string[strlen(str)] = '\0';
     temp -> next = NULL;
-    //temp -> next = head;
-    //head = temp;
+
     if (head)
     {
         Node* cursor = head;
