@@ -7,12 +7,13 @@ import re
 registers = dict()
 mem = dict()
 cycles = 0
+lines = 1
 
 def accessMem(num, value=None):
 
-    if not value:
+    if not value and value != 0:
         if num not in mem:
-            print("b:", num)
+            print("b:", num, lines)
             return 0
         return mem[num]
     else:
@@ -40,7 +41,9 @@ def parse(line):
         regs = re.findall('(r\d+)', line)[0]
         count = int(re.search('(-?\d+)', line).group(1))
         registers[regs] = count
-
+    elif action == "loadAO":
+        regs = re.findall('(r\d+)', line)
+        registers[regs[2]] = accessMem(registers[regs[0]]+registers[regs[1]])
     elif action == "load":
         regs = re.findall('(r\d+)', line)
         registers[regs[1]] = accessMem(registers[regs[0]])
@@ -101,12 +104,12 @@ def parse(line):
         print(action)
 
 def start(iloc):
-    lines = 0
+    global lines
     for line in iloc.split('\n'):
         line = line.strip()
         if line and "//" not in line:
             parse(line)
-            lines += 1
+        lines += 1
     print("cycles = {} and lines = {}".format(cycles, lines))
     print(mem)
 

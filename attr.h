@@ -1,6 +1,6 @@
 /**********************************************
         CS415  Project 2
-        Spring  2015
+        Spring  2018
         Student Version
 **********************************************/
 
@@ -25,7 +25,10 @@ typedef struct
     int endLbl; //loop end
 }LabelList;
 
-static int inductionVar = 0;
+typedef struct varList1
+{
+    struct LinkedList* head; //start the list
+}varList;
 
 /*
  *the Nodes that will make up the linked list

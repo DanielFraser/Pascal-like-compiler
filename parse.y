@@ -57,7 +57,7 @@ vardcls	: vardcls vardcl ';' { }
 	| error ';' { yyerror("***Error: illegal variable declaration\n");}  
 	;
 
-vardcl	: idlist ':' type {}
+vardcl	: idlist ':' type {} //add to symbol table here
 	;
 
 idlist	: idlist ',' ID {addToList($3.str);}
@@ -130,12 +130,8 @@ writestmt: PRINT '(' exp ')' { int printOffset = -4; /* default location for pri
 	;
 
 wstmt	: WHILE  {emit(NextLabel(),NOP,0,0,0);}
-          condexp {//Activate global var?
-                    inductionVar = 1;
-                    emit($3.cond,NOP,0,0,0);}
-          DO stmt  {//Deactivate global var?
-                    inductionVar = 0;
-                    emit(NOLABEL,BR,$3.initial,0,0); emit($3.endLbl,NOP,0,0,0);}
+          condexp {emit($3.cond,NOP,0,0,0);}
+          DO stmt  {emit(NOLABEL,BR,$3.initial,0,0); emit($3.endLbl,NOP,0,0,0);}
 	;
 
 
@@ -160,16 +156,9 @@ lhs	: ID			{ /* BOGUS  - needs to be fixed */
 
                   SymTabEntry* exists = lookup($1.str);
                   if(!exists)
-                  {
-                    if(inductionVar)
-                        printf("\n*** ERROR ***: Induction variable %s not declared.\n", $1.str);
-                    else
-                        printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
-                  }
+                    printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
 
-                if(inductionVar && (exists -> type != TYPE_INT || exists -> var != TYPE_SCALAR))
-                    printf("\n*** ERROR ***: Induction variable %s not a scalar of type integer.\n", $1.str);
-                else if (exists -> var != TYPE_SCALAR)
+                if (exists -> var != TYPE_SCALAR)
                     printf("\n*** ERROR ***: Variable %s is not a scalar variable.\n", $1.str);
 
                   $$.type = exists -> type;
@@ -192,7 +181,7 @@ lhs	: ID			{ /* BOGUS  - needs to be fixed */
                                        if(!var)
                                           printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
                                        int offset = var -> offset;
-                                       int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister()};
+                                       int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister(),NextRegister()};
                                        emit(NOLABEL, LOADI, 4, newRegs[0], EMPTY);
                                        emit(NOLABEL, MULT, newRegs[0], $3.targetRegister, newRegs[1]);
                                        emit(NOLABEL, LOADI, offset,  newRegs[2], EMPTY);
@@ -289,7 +278,8 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
                                 printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
 	                          $$.targetRegister = newReg;
                               $$.type = var -> type;
-                              emit(NOLABEL, LOADI, var -> offset, newReg, EMPTY);
+                              emit(NOLABEL, LOADAI, 0, var -> offset, newReg);
+
 	                        }
 
         | ID '[' exp ']'    {
@@ -302,7 +292,7 @@ exp	: exp '+' exp		{ int newReg = NextRegister();
                               if(!var)
                                 printf("\n*** ERROR ***: Variable %s not declared.\n", $1.str);
                               int offset = var -> offset;
-                              int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister()};
+                              int newRegs[5] = {NextRegister(),NextRegister(),NextRegister(),NextRegister(),NextRegister()};
                               emit(NOLABEL, LOADI, 4, newRegs[0], EMPTY);
                               emit(NOLABEL, MULT, newRegs[0], $3.targetRegister, newRegs[1]);
                               emit(NOLABEL, LOADI, offset,  newRegs[2], EMPTY);
@@ -406,8 +396,7 @@ void yyerror(char* s) {
         }
 
 
-int
-main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {
 
   printf("\n     CS415 Spring 2018 Compiler\n\n");
 

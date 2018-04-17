@@ -17,7 +17,7 @@ Node* head = NULL; //head of linked list
 */
 void clearList()
 {
-    Node** tempHead = &head;
+    Node** head1 = &head;
     Node* cursor = head; //points to where head is actually pointing at
     Node* nodeToDelete = NULL; //design to hold the node to be deleted
     while (cursor != NULL) //loops through linked list until it hits the end

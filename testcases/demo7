@@ -1,6 +1,7 @@
 program main;
 var a, b: integer;
     i: integer;
+
 begin
   i := 0;
   a := 1;
